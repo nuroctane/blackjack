@@ -44,16 +44,22 @@ Not a multi-game lobby. One felt, one hand, maximum legibility.
 ### Table
 
 - Multi-deck shoe (default 6), shuffle, deal, hit, stand, settle, next hand
-- Bankroll + chip bet selection
-- Dealer hole card hidden during player turn
+- Full action surface: **double, split (to 4 hands), insurance / even money, late surrender**
+- Rule config panel: decks, H17/S17, 3:2 vs 6:5, double policy, DAS, split-ace rules, surrender, insurance, penetration
+- Cut-card penetration reshuffle between rounds (no mid-hand corruption)
+- Bankroll + chip bet selection, session stats (W/L/P, blackjacks, net), local persistence
+- Dealer hole card hidden during player turn; dealer peeks on ten/ace
 - Soft totals called out in the UI
 - Natural blackjack detection in the engine
 
 ### Odds (odds-first)
 
 - **P(bust on hit)** — exact fraction of remaining ranks that bust you next card
-- Driven by live shoe composition, not a static chart
-- Labeled honestly as combinatorial next-hit risk, not full strategy EV
+- **Exact dealer outcome distribution** — P(17…21, bust) computed by recursion over live shoe composition with depletion, post-peek conditional
+- **Stand EV** — exact per-unit EV of standing vs that distribution
+- **Hi-Lo running / true count** (toggle)
+- **Basic-strategy advisor** (toggle) — published chart with H17/S17 deltas, DAS/surrender aware; labeled as chart, not a composition-dependent solve
+- Driven by live shoe composition, not a static chart (advisor excepted and labeled)
 
 ### Identity (web3)
 
@@ -82,14 +88,17 @@ Everything below stays inside the game. No product sprawl.
 | Done | Settle banners, bust meter, focus-visible, reduced-motion | ✅ |
 | Done | Structured `result` tone; rebuy / all-in; bust via settle() | ✅ |
 | Done | Client SIWE verifyMessage + chainId; WC demo Cloud id | ✅ (server still next) |
-| Next | Split (true multi-hand seat) / insurance | Engine stubs deferred until multi-hand UI |
+| Done | Split (true multi-hand), insurance / even money, late surrender | ✅ Engine + UI |
+| Done | Rule config (decks, H17/S17, payout, DAS, double policy, split aces, surrender, penetration) | ✅ |
+| Done | Penetration / cut card reshuffle policy | ✅ |
+| Done | Exact dealer distribution + stand EV; Hi-Lo count | ✅ Combinatorial, post-peek conditional |
+| Done | Basic-strategy chart advisor (H17/S17, DAS, LS aware) | ✅ Labeled as chart |
+| Done | Session stats (W/L/P, BJ, net) + local persistence | ✅ |
 | Next | Full SIWE session (cookie + server verify) | Client verified; server next |
 | Next | On-chain buy-in / cashout | Bankroll that can leave the browser |
-| Soon | Basic-strategy EV / advice table | Full EV from remaining shoe + rules — only when exact |
-| Soon | Surrender / dealer rules toggles (H17/S17, DAS, etc.) | Rule-legible table config for serious play |
-| Later | Penetration / cut card, reshuffle policy | Real shoe discipline |
-| Later | Hand history + session stats (W/L, EV vs play) | Utility for the player, not social noise |
-| Later | Multi-hand / seat only if it stays clear | Never at the cost of legibility |
+| Soon | Full composition-dependent EV per action (hit/double/split solve) | Only when exact — dealer dist + stand EV shipped as first step |
+| Later | Hand history log (per-hand replay, EV vs play grading) | Utility for the player, not social noise |
+| Later | Sound / haptics on native shell | Capacitor haptics, quiet by default |
 
 **Out of scope forever (examples):** other casino games, NFT mint spam, generic DeFi dashboard, non-blackjack chrome.
 
@@ -101,7 +110,7 @@ Everything below stays inside the game. No product sprawl.
 |-------|--------|
 | App | Next.js 15, React 19, TypeScript |
 | Chain UI | wagmi, viem, RainbowKit |
-| Table engine | `src/lib/shoe.ts` — shoe, hand value, bust probability, phases |
+| Table engine | `src/lib/shoe.ts` — shoe, rules, multi-hand phases, exact odds · `src/lib/strategy.ts` — chart advisor |
 | Design | CSS tokens — `src/styles/sea.css` |
 | Native | Capacitor 7 (iOS / Android) |
 
@@ -170,11 +179,13 @@ Agent conventions: `.agents/memory/AGENTS.md`
 - [x] RainbowKit connect (dark theme)
 - [x] Capacitor shell hooks (iOS / Android)
 - [x] GitHub button (placeholder for NextAuth)
+- [x] Double / split / insurance / surrender
+- [x] Rule config (H17/S17, DAS, surrender, decks, payout, penetration)
+- [x] Exact dealer distribution + stand EV; Hi-Lo count; chart advisor
+- [x] Session stats + persistence
 - [ ] Full SIWE session cookie + server verify
 - [ ] On-chain buy-in / cashout
-- [ ] Double / split / insurance
-- [ ] Full basic-strategy EV table
-- [ ] Rule config (H17/S17, DAS, surrender, decks, penetration)
+- [ ] Full composition-dependent EV per action
 
 ---
 
