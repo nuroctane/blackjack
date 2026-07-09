@@ -147,6 +147,12 @@ a {
   box-shadow: none !important;
 }
 
+.sea-btn:focus-visible,
+.sea-chip:focus-visible {
+  outline: 2px solid var(--sea-biolume);
+  outline-offset: 3px;
+}
+
 .sea-chip {
   appearance: none;
   border: 1px solid var(--sea-border-soft);
@@ -228,12 +234,102 @@ a {
   animation-delay: 160ms;
 }
 
+/* Settle / status banners — opacity + Y, never scale(0) */
+.sea-banner {
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  line-height: 1.45;
+  border: 1px solid var(--sea-border-soft);
+  background: rgba(18, 26, 43, 0.72);
+  animation: sea-banner-in 200ms var(--ease-out) both;
+}
+
+.sea-banner--win {
+  border-color: rgba(52, 199, 89, 0.45);
+  color: var(--sea-success);
+  background: rgba(52, 199, 89, 0.1);
+}
+
+.sea-banner--loss {
+  border-color: rgba(255, 69, 58, 0.4);
+  color: #ff8a84;
+  background: rgba(255, 69, 58, 0.08);
+}
+
+.sea-banner--push {
+  border-color: rgba(90, 200, 250, 0.35);
+  color: var(--sea-biolume);
+  background: rgba(90, 200, 250, 0.08);
+}
+
+.sea-banner--neutral {
+  color: var(--sea-muted);
+}
+
+@keyframes sea-banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Bust probability meter */
+.sea-meter {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.sea-meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--sea-biolume), var(--sea-accent));
+  transition: width var(--dur-ui) var(--ease-out);
+}
+
+/* Soft page enter stagger for primary blocks */
+.sea-stagger > * {
+  animation: sea-fade-up 220ms var(--ease-out) both;
+}
+.sea-stagger > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.sea-stagger > *:nth-child(2) {
+  animation-delay: 40ms;
+}
+.sea-stagger > *:nth-child(3) {
+  animation-delay: 80ms;
+}
+.sea-stagger > *:nth-child(4) {
+  animation-delay: 120ms;
+}
+
+@keyframes sea-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .card-face {
+  .card-face,
+  .sea-banner,
+  .sea-stagger > * {
     animation: none;
   }
   .sea-btn,
-  .sea-chip {
+  .sea-chip,
+  .sea-meter-fill {
     transition: none;
   }
 }

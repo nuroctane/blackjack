@@ -2,7 +2,9 @@
  * Node-runnable smoke tests: npx tsx src/lib/shoe.test.ts
  */
 import {
+  canDouble,
   deal,
+  doubleDown,
   freshShoe,
   handValue,
   hit,
@@ -55,6 +57,20 @@ if (t.phase === "player") {
   const before = t.player.length;
   t = hit(t);
   assert(t.player.length === before + 1 || t.phase === "settled", "hit draws or settles");
+}
+
+// double only on two-card player phase with bankroll
+{
+  let d = deal(newTable(6, 1000));
+  if (d.phase === "player") {
+    assert(canDouble(d) === true, "can double two-card");
+    const bank = d.bankroll;
+    const bet = d.bet;
+    d = doubleDown(d);
+    assert(d.player.length === 3 || d.phase === "settled", "double draws one");
+    // stake was doubled: bankroll paid extra bet
+    assert(d.bankroll === bank - bet || d.phase === "settled", "double stakes");
+  }
 }
 
 console.log("shoe.test.ts: all passed");

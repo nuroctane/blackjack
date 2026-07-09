@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import {
+  canDouble,
   deal,
+  doubleDown,
   hit,
   handValue,
   nextCardBustProb,
@@ -65,6 +67,14 @@ function CardView({
   );
 }
 
+function messageTone(msg: string): "win" | "loss" | "push" | "neutral" {
+  const m = msg.toLowerCase();
+  if (m.includes("win") || m.includes("blackjack") || m.includes("busts")) return "win";
+  if (m.includes("lose") || m.includes("bust ")) return "loss";
+  if (m.includes("push")) return "push";
+  return "neutral";
+}
+
 export function Table() {
   const [t, setT] = useState<TableState>(() => newTable(6, 1000));
 
@@ -75,9 +85,11 @@ export function Table() {
     () => (t.phase === "player" ? nextCardBustProb(t.player, t.shoe) : null),
     [t],
   );
+  const showDouble = canDouble(t);
+  const tone = messageTone(t.message);
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
+    <div style={{ display: "grid", gap: 16 }} className="sea-stagger">
       {/* Felt */}
       <div
         className="sea-glass-thick sea-glass"
@@ -177,21 +189,30 @@ export function Table() {
             <div style={{ color: "var(--sea-muted)", fontSize: 12, marginTop: 6, lineHeight: 1.4 }}>
               Exact from remaining cards — combinatorial, not full strategy EV.
             </div>
+            <div
+              className="sea-meter"
+              style={{ marginTop: 10 }}
+              role="meter"
+              aria-valuenow={Math.round(bustP * 100)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Bust probability"
+            >
+              <div className="sea-meter-fill" style={{ width: `${Math.min(100, bustP * 100)}%` }} />
+            </div>
           </div>
         )}
       </div>
 
-      <p
-        style={{
-          color: "var(--sea-muted)",
-          margin: 0,
-          minHeight: 22,
-          fontSize: 14,
-          lineHeight: 1.4,
-        }}
-      >
-        {t.message}
-      </p>
+      {t.message && (
+        <div
+          className={`sea-banner sea-banner--${tone}`}
+          role="status"
+          aria-live="polite"
+        >
+          {t.message}
+        </div>
+      )}
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
         {t.phase === "betting" && (
@@ -220,6 +241,15 @@ export function Table() {
             <button type="button" className="sea-btn secondary" onClick={() => setT((s) => stand(s))}>
               Stand
             </button>
+            {showDouble && (
+              <button
+                type="button"
+                className="sea-btn secondary"
+                onClick={() => setT((s) => doubleDown(s))}
+              >
+                Double
+              </button>
+            )}
           </>
         )}
         {t.phase === "settled" && (

@@ -69,10 +69,13 @@ A single-purpose blackjack client: play, read the shoe, settle the hand. The UI 
 
 Everything below stays inside the game. No product sprawl.
 
-| Priority | Feature | Why it belongs |
-|----------|---------|----------------|
-| Next | Double / split / insurance | Complete standard table actions |
-| Next | Full SIWE session (cookie + server verify) | Real web3 session, not connect-only |
+| Priority | Feature | Status |
+|----------|---------|--------|
+| Done | Double down (two-card, 1 card, 2× stake) | ✅ Engine + UI |
+| Done | Design system (`DESIGN.md` + sea tokens, Emil/Apple motion) | ✅ |
+| Done | Settle banners, bust meter, focus-visible, reduced-motion | ✅ |
+| Next | Split (true multi-hand seat) / insurance | Engine stubs deferred until multi-hand UI |
+| Next | Full SIWE session (cookie + server verify) | Connect ships; session hardening next |
 | Next | On-chain buy-in / cashout | Bankroll that can leave the browser |
 | Soon | Basic-strategy EV / advice table | Full EV from remaining shoe + rules — only when exact |
 | Soon | Surrender / dealer rules toggles (H17/S17, DAS, etc.) | Rule-legible table config for serious play |

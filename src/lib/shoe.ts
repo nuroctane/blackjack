@@ -296,3 +296,44 @@ export function nextRound(state: TableState): TableState {
     message: "Place a bet to deal. Dealer H17.",
   };
 }
+
+/** Double down: exactly one extra card, double stake, then stand. Two-card hands only. */
+export function canDouble(state: TableState): boolean {
+  return (
+    state.phase === "player" &&
+    state.player.length === 2 &&
+    state.bankroll >= state.bet
+  );
+}
+
+export function doubleDown(state: TableState): TableState {
+  if (!canDouble(state)) {
+    return { ...state, message: state.message || "Cannot double." };
+  }
+  const extraBet = state.bet;
+  let s: TableState = {
+    ...state,
+    bankroll: state.bankroll - extraBet,
+    bet: state.bet + extraBet,
+    message: "Double — one card.",
+  };
+  try {
+    let c;
+    ({ card: c, state: s } = draw(s));
+    s = { ...s, player: [...s.player, c] };
+  } catch {
+    return {
+      ...state,
+      message: "Shoe exhausted on double.",
+    };
+  }
+  const v = handValue(s.player).total;
+  if (v > 21) {
+    return {
+      ...s,
+      phase: "settled",
+      message: `Bust ${v} on double. Lose ${s.bet}.`,
+    };
+  }
+  return stand(s);
+}
