@@ -1,4 +1,4 @@
-# Digital Sea Blackjack
+# Blackjack - Digital Sea 
 
 Native-feeling web blackjack under the **Digital Sea** brand family (shared with AstroSleep).
 
