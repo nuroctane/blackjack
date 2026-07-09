@@ -1,23 +1,37 @@
-/* Digital Sea tokens — mirror Building & Projects/DESIGN.md */
+/* Digital Sea + Apple materials + Emil motion craft
+   SoT: DESIGN.md · emilkowalski/skills apple-design + emil-design-eng */
+
 :root {
   --sea-void: #070b14;
   --sea-field: #0b1220;
   --sea-surface: #121a2b;
   --sea-elevated: #1a2438;
   --sea-border: #2a3650;
-  --sea-border-soft: #ffffff14;
+  --sea-border-soft: rgba(255, 255, 255, 0.08);
+  --sea-glass-edge: rgba(255, 255, 255, 0.22);
   --sea-text: #e8eef8;
   --sea-muted: #9aa8c0;
   --sea-faint: #6b7a94;
   --sea-accent: #5856d6;
-  --sea-accent-soft: #5856d633;
+  --sea-accent-soft: rgba(88, 86, 214, 0.22);
   --sea-biolume: #5ac8fa;
   --sea-success: #34c759;
   --sea-danger: #ff453a;
-  --radius-md: 14px;
-  --radius-lg: 20px;
-  --font: "Inter", system-ui, -apple-system, sans-serif;
-  --mono: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+  --sea-heart: #ff6b6b;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+  --font: system-ui, -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  /* Emil / Apple curves */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-press: 140ms;
+  --dur-ui: 200ms;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 * {
@@ -31,6 +45,9 @@ body {
   background: var(--sea-void);
   color: var(--sea-text);
   font-family: var(--font);
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
 a {
@@ -38,56 +55,195 @@ a {
 }
 
 .sea-app {
+  min-height: 100dvh;
   min-height: 100vh;
   background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, #5856d622, transparent),
+    radial-gradient(ellipse 90% 55% at 50% -15%, rgba(88, 86, 214, 0.28), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(90, 200, 250, 0.08), transparent 50%),
     var(--sea-void);
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
 }
 
+/* Liquid Glass material (Apple materials hierarchy + liquidglass feel) */
 .sea-glass {
-  background: color-mix(in srgb, var(--sea-surface) 78%, transparent);
-  backdrop-filter: blur(16px) saturate(1.2);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  position: relative;
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.09) 0%,
+    rgba(18, 26, 43, 0.72) 40%,
+    rgba(11, 18, 32, 0.85) 100%
+  );
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
   border: 1px solid var(--sea-border-soft);
+  border-top-color: var(--sea-glass-edge);
   border-radius: var(--radius-md);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.sea-glass-thick {
+  backdrop-filter: blur(40px) saturate(200%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(18, 26, 43, 0.8) 45%,
+    rgba(7, 11, 20, 0.9) 100%
+  );
 }
 
 .sea-btn {
   appearance: none;
-  border: 1px solid var(--sea-border-soft);
+  border: 1px solid transparent;
   background: var(--sea-accent);
   color: #fff;
   font-weight: 600;
-  font-size: 14px;
-  padding: 12px 18px;
-  border-radius: 999px;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  padding: 14px 22px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.2s ease, background 0.2s ease;
-}
-
-.sea-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0 24px #5856d655;
+  transition:
+    transform var(--dur-press) var(--ease-out),
+    box-shadow var(--dur-ui) var(--ease-out),
+    background var(--dur-ui) ease,
+    border-color var(--dur-ui) ease;
+  will-change: transform;
+  touch-action: manipulation;
 }
 
 .sea-btn:active {
-  transform: scale(0.98);
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sea-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(88, 86, 214, 0.45);
+  }
+  .sea-btn:hover:active {
+    transform: scale(0.97);
+  }
 }
 
 .sea-btn.secondary {
   background: transparent;
   border-color: var(--sea-border);
   color: var(--sea-text);
+  box-shadow: none;
+}
+
+.sea-btn.secondary:active {
+  background: var(--sea-accent-soft);
 }
 
 .sea-btn:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.sea-chip {
+  appearance: none;
+  border: 1px solid var(--sea-border-soft);
+  background: rgba(18, 26, 43, 0.55);
+  backdrop-filter: blur(12px);
+  color: var(--sea-muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition:
+    transform var(--dur-press) var(--ease-out),
+    background var(--dur-ui) var(--ease-out),
+    border-color var(--dur-ui) var(--ease-out),
+    color var(--dur-ui) ease;
+}
+
+.sea-chip:active {
+  transform: scale(0.97);
+}
+
+.sea-chip[data-active="true"] {
+  border-color: var(--sea-accent);
+  background: var(--sea-accent-soft);
+  color: #fff;
 }
 
 .mono {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
+}
+
+.display {
+  font-size: clamp(1.35rem, 3vw, 1.75rem);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+
+.card-face {
+  width: 72px;
+  height: 100px;
+  border-radius: 12px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition:
+    transform var(--dur-ui) var(--ease-out),
+    box-shadow var(--dur-ui) var(--ease-out);
+  animation: card-deal 220ms var(--ease-out) both;
+}
+
+@keyframes card-deal {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.card-face:nth-child(1) {
+  animation-delay: 0ms;
+}
+.card-face:nth-child(2) {
+  animation-delay: 40ms;
+}
+.card-face:nth-child(3) {
+  animation-delay: 80ms;
+}
+.card-face:nth-child(4) {
+  animation-delay: 120ms;
+}
+.card-face:nth-child(5) {
+  animation-delay: 160ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-face {
+    animation: none;
+  }
+  .sea-btn,
+  .sea-chip {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .sea-glass,
+  .sea-glass-thick {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--sea-surface);
+    border-color: var(--sea-border);
+  }
 }

@@ -4,41 +4,70 @@ import { Table } from "@/components/Table";
 
 export default function HomePage() {
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: "28px 16px 64px" }}>
+    <main
+      style={{
+        maxWidth: 720,
+        margin: "0 auto",
+        padding: "20px 16px calc(32px + env(safe-area-inset-bottom))",
+      }}
+    >
       <header
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           gap: 16,
-          marginBottom: 28,
+          marginBottom: 24,
           flexWrap: "wrap",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Image src="/logo.svg" alt="Digital Sea Blackjack" width={48} height={48} priority />
+          <div
+            className="sea-glass"
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: 14,
+              display: "grid",
+              placeItems: "center",
+              overflow: "hidden",
+            }}
+          >
+            <Image src="/logo.svg" alt="" width={52} height={52} priority />
+          </div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 18, letterSpacing: "-0.02em" }}>
-              Digital Sea Blackjack
-            </div>
-            <div style={{ color: "#9AA8C0", fontSize: 13 }}>
-              SIWE · WalletConnect · odds-first table
+            <h1 className="display" style={{ margin: 0 }}>
+              Digital Sea
+            </h1>
+            <div style={{ color: "var(--sea-muted)", fontSize: 13, marginTop: 2 }}>
+              Blackjack · SIWE · odds-first
             </div>
           </div>
         </div>
         <AuthBar />
       </header>
 
-      <section className="sea-glass" style={{ padding: 16, marginBottom: 20 }}>
-        <p style={{ margin: 0, color: "#9AA8C0", fontSize: 14, lineHeight: 1.5 }}>
-          Family brand tokens match AstroSleep / Digital Sea (
-          <span style={{ color: "#5856D6" }}>#5856D6</span>). Auth: wallet (RainbowKit /
-          WalletConnect) + GitHub. On-chain payments and SIWE session hardening land in the next
-          slice — table math and odds panel ship first.
+      <section className="sea-glass" style={{ padding: "14px 16px", marginBottom: 18 }}>
+        <p style={{ margin: 0, color: "var(--sea-muted)", fontSize: 13.5, lineHeight: 1.5 }}>
+          Built on the same Digital Sea identity as AstroSleep — liquid materials, quiet motion
+          (Emil / Apple WWDC craft), system-first type. Wallet via RainbowKit + WalletConnect; GitHub
+          auth path reserved. Table math ships first; on-chain cashout next.
         </p>
       </section>
 
       <Table />
+
+      <footer
+        style={{
+          marginTop: 36,
+          color: "var(--sea-faint)",
+          fontSize: 12,
+          textAlign: "center",
+          letterSpacing: "0.04em",
+        }}
+      >
+        NATIVE SHELL · CAPACITOR iOS / ANDROID
+      </footer>
     </main>
   );
 }

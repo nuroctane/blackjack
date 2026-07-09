@@ -2,23 +2,57 @@
 
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 
-/**
- * Auth surface: SIWE path via RainbowKit + WalletConnect.
- * GitHub OAuth can be added as a second provider (NextAuth) without changing layout.
- */
 export function AuthBar() {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <ConnectButton
-        chainStatus="icon"
-        accountStatus="address"
-        showBalance={false}
-      />
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <ConnectButton.Custom>
+        {({
+          account,
+          chain,
+          openAccountModal,
+          openChainModal,
+          openConnectModal,
+          mounted,
+        }) => {
+          const ready = mounted;
+          const connected = ready && account && chain;
+          return (
+            <div
+              {...(!ready && {
+                "aria-hidden": true,
+                style: { opacity: 0, pointerEvents: "none", userSelect: "none" },
+              })}
+            >
+              {(() => {
+                if (!connected) {
+                  return (
+                    <button type="button" className="sea-btn" onClick={openConnectModal}>
+                      Connect wallet
+                    </button>
+                  );
+                }
+                if (chain.unsupported) {
+                  return (
+                    <button type="button" className="sea-btn secondary" onClick={openChainModal}>
+                      Wrong network
+                    </button>
+                  );
+                }
+                return (
+                  <button type="button" className="sea-chip" data-active="true" onClick={openAccountModal}>
+                    {account.displayName}
+                  </button>
+                );
+              })()}
+            </div>
+          );
+        }}
+      </ConnectButton.Custom>
       <a
         href="https://github.com/login"
-        className="sea-btn secondary"
-        style={{ textDecoration: "none", fontSize: 13, padding: "10px 14px" }}
-        title="GitHub sign-in (wire NextAuth in a follow-up)"
+        className="sea-chip"
+        style={{ textDecoration: "none" }}
+        title="GitHub OAuth — wire NextAuth next"
       >
         GitHub
       </a>

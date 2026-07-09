@@ -12,44 +12,52 @@ import {
   type TableState,
 } from "@/lib/shoe";
 
-function CardView({ rank, suit, hidden }: { rank?: string; suit?: string; hidden?: boolean }) {
+function CardView({
+  rank,
+  suit,
+  hidden,
+  delay = 0,
+}: {
+  rank?: string;
+  suit?: string;
+  hidden?: boolean;
+  delay?: number;
+}) {
   if (hidden) {
     return (
       <div
-        className="sea-glass"
+        className="card-face sea-glass"
         style={{
-          width: 64,
-          height: 90,
-          display: "grid",
+          animationDelay: `${delay}ms`,
+          background:
+            "linear-gradient(145deg, rgba(88,86,214,0.25), rgba(18,26,43,0.95))",
+          borderColor: "rgba(88,86,214,0.45)",
           placeItems: "center",
-          background: "linear-gradient(145deg,#121A2B,#1A2438)",
-          borderColor: "#5856D655",
+          display: "grid",
         }}
       >
-        <span style={{ color: "#5856D6", fontSize: 20 }}>✦</span>
+        <span style={{ color: "#5AC8FA", fontSize: 22, opacity: 0.9 }}>✦</span>
       </div>
     );
   }
   const red = suit === "♥" || suit === "♦";
   return (
     <div
-      className="sea-glass"
+      className="card-face sea-glass"
       style={{
-        width: 64,
-        height: 90,
-        padding: 8,
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        color: red ? "#FF6B6B" : "#E8EEF8",
+        animationDelay: `${delay}ms`,
+        color: red ? "var(--sea-heart)" : "var(--sea-text)",
       }}
     >
-      <span className="mono" style={{ fontSize: 14, fontWeight: 700 }}>
+      <span className="mono" style={{ fontSize: 15, fontWeight: 700 }}>
         {rank}
         {suit}
       </span>
-      <span style={{ fontSize: 22, alignSelf: "center" }}>{suit}</span>
-      <span className="mono" style={{ fontSize: 14, fontWeight: 700, alignSelf: "flex-end" }}>
+      <span style={{ fontSize: 26, alignSelf: "center", lineHeight: 1 }}>{suit}</span>
+      <span
+        className="mono"
+        style={{ fontSize: 15, fontWeight: 700, alignSelf: "flex-end", transform: "rotate(180deg)" }}
+      >
         {rank}
         {suit}
       </span>
@@ -69,67 +77,121 @@ export function Table() {
   );
 
   return (
-    <div style={{ display: "grid", gap: 20 }}>
-      <div className="sea-glass" style={{ padding: 20 }}>
-        <div style={{ color: "#9AA8C0", fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-          Dealer {t.phase !== "betting" && !hideHole ? `· ${dVal.total}` : hideHole && t.dealer[0] ? "· ?" : ""}
+    <div style={{ display: "grid", gap: 16 }}>
+      {/* Felt */}
+      <div
+        className="sea-glass-thick sea-glass"
+        style={{
+          padding: "22px 18px 20px",
+          borderRadius: "var(--radius-lg)",
+          background:
+            "linear-gradient(180deg, rgba(18,40,36,0.55) 0%, rgba(11,18,32,0.75) 100%)",
+        }}
+      >
+        <div
+          style={{
+            color: "var(--sea-muted)",
+            fontSize: 11,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            marginBottom: 12,
+          }}
+        >
+          Dealer
+          {t.phase !== "betting" && !hideHole ? (
+            <span className="mono" style={{ color: "var(--sea-text)", marginLeft: 8 }}>
+              {dVal.total}
+            </span>
+          ) : hideHole && t.dealer[0] ? (
+            <span style={{ marginLeft: 8 }}>· upcard</span>
+          ) : null}
         </div>
-        <div style={{ display: "flex", gap: 10, marginTop: 12, minHeight: 90 }}>
+        <div style={{ display: "flex", gap: 10, minHeight: 100, flexWrap: "wrap" }}>
           {t.dealer.map((c, i) => (
-            <CardView key={c.id} rank={c.rank} suit={c.suit} hidden={hideHole && i === 1} />
+            <CardView
+              key={c.id}
+              rank={c.rank}
+              suit={c.suit}
+              hidden={hideHole && i === 1}
+              delay={i * 45}
+            />
           ))}
-          {t.dealer.length === 0 && <span style={{ color: "#6B7A94" }}>—</span>}
+          {t.dealer.length === 0 && (
+            <span style={{ color: "var(--sea-faint)", alignSelf: "center" }}>Waiting for deal…</span>
+          )}
+        </div>
+
+        <div style={{ height: 28 }} />
+
+        <div
+          style={{
+            color: "var(--sea-muted)",
+            fontSize: 11,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            marginBottom: 12,
+          }}
+        >
+          You
+          {t.player.length > 0 && (
+            <span className="mono" style={{ color: "var(--sea-biolume)", marginLeft: 8 }}>
+              {pVal.total}
+              {pVal.soft ? " soft" : ""}
+            </span>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 10, minHeight: 100, flexWrap: "wrap" }}>
+          {t.player.map((c, i) => (
+            <CardView key={c.id} rank={c.rank} suit={c.suit} delay={i * 45} />
+          ))}
+          {t.player.length === 0 && (
+            <span style={{ color: "var(--sea-faint)", alignSelf: "center" }}>—</span>
+          )}
         </div>
       </div>
 
-      <div className="sea-glass" style={{ padding: 20 }}>
-        <div style={{ color: "#9AA8C0", fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-          You {t.player.length ? `· ${pVal.total}${pVal.soft ? " soft" : ""}` : ""}
-        </div>
-        <div style={{ display: "flex", gap: 10, marginTop: 12, minHeight: 90 }}>
-          {t.player.map((c) => (
-            <CardView key={c.id} rank={c.rank} suit={c.suit} />
-          ))}
-          {t.player.length === 0 && <span style={{ color: "#6B7A94" }}>—</span>}
-        </div>
-      </div>
-
+      {/* Odds / bank */}
       <div
         className="sea-glass"
-        style={{ padding: 16, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}
+        style={{
+          padding: 16,
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 12,
+        }}
       >
-        <div>
-          <div style={{ color: "#6B7A94", fontSize: 11 }}>Bankroll</div>
-          <div className="mono" style={{ fontSize: 18, fontWeight: 600 }}>
-            {t.bankroll}
-          </div>
-        </div>
-        <div>
-          <div style={{ color: "#6B7A94", fontSize: 11 }}>Bet</div>
-          <div className="mono" style={{ fontSize: 18, fontWeight: 600 }}>
-            {t.bet}
-          </div>
-        </div>
-        <div>
-          <div style={{ color: "#6B7A94", fontSize: 11 }}>Shoe left</div>
-          <div className="mono" style={{ fontSize: 18, fontWeight: 600 }}>
-            {t.shoe.length}
-          </div>
-        </div>
+        <Stat label="Bankroll" value={String(t.bankroll)} />
+        <Stat label="Bet" value={String(t.bet)} accent />
+        <Stat label="Shoe" value={String(t.shoe.length)} />
         {bustP !== null && (
-          <div style={{ gridColumn: "1 / -1" }}>
-            <div style={{ color: "#6B7A94", fontSize: 11 }}>P(bust on hit)</div>
-            <div className="mono" style={{ fontSize: 20, color: "#5AC8FA", fontWeight: 600 }}>
+          <div style={{ gridColumn: "1 / -1", paddingTop: 4 }}>
+            <div style={{ color: "var(--sea-faint)", fontSize: 11, letterSpacing: "0.06em" }}>
+              P(BUST ON HIT)
+            </div>
+            <div
+              className="mono display"
+              style={{ color: "var(--sea-biolume)", marginTop: 4 }}
+            >
               {(bustP * 100).toFixed(1)}%
             </div>
-            <div style={{ color: "#6B7A94", fontSize: 12, marginTop: 4 }}>
+            <div style={{ color: "var(--sea-muted)", fontSize: 12, marginTop: 6, lineHeight: 1.4 }}>
               Exact from remaining cards — combinatorial, not full strategy EV.
             </div>
           </div>
         )}
       </div>
 
-      <p style={{ color: "#9AA8C0", margin: 0, minHeight: 24 }}>{t.message}</p>
+      <p
+        style={{
+          color: "var(--sea-muted)",
+          margin: 0,
+          minHeight: 22,
+          fontSize: 14,
+          lineHeight: 1.4,
+        }}
+      >
+        {t.message}
+      </p>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
         {t.phase === "betting" && (
@@ -138,9 +200,9 @@ export function Table() {
               <button
                 key={b}
                 type="button"
-                className="sea-btn secondary"
+                className="sea-chip"
+                data-active={t.bet === b}
                 onClick={() => setT((s) => ({ ...s, bet: b }))}
-                style={t.bet === b ? { borderColor: "#5856D6", background: "#5856D633" } : undefined}
               >
                 {b}
               </button>
@@ -165,6 +227,25 @@ export function Table() {
             Next hand
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div>
+      <div style={{ color: "var(--sea-faint)", fontSize: 11, letterSpacing: "0.06em" }}>{label}</div>
+      <div
+        className="mono"
+        style={{
+          fontSize: 20,
+          fontWeight: 600,
+          marginTop: 4,
+          color: accent ? "var(--sea-accent)" : "var(--sea-text)",
+        }}
+      >
+        {value}
       </div>
     </div>
   );
