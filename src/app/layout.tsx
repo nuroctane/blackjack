@@ -6,7 +6,10 @@ export const metadata: Metadata = {
   title: "Digital Sea Blackjack",
   description:
     "Unified Digital Sea blackjack — SIWE (RainbowKit + WalletConnect) and GitHub auth. Accurate shoe odds.",
-  icons: { icon: "/logo.svg" },
+  icons: {
+    icon: [{ url: "/logo.png", type: "image/png" }, { url: "/logo.svg", type: "image/svg+xml" }],
+    apple: "/icon.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

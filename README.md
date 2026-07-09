@@ -1,10 +1,16 @@
 # Blackjack
 
-Quiet table. Dense engine. Web3 when you need it.
+<p align="center">
+  <img src="branding/blackjack-logo-readme.png" alt="Blackjack logo" width="160" height="160" />
+</p>
+
+<p align="center"><strong>Quiet table. Dense engine. Web3 when you need it.</strong></p>
+
+**Aesthetic:** under-the-hood presence — Digital Sea void field, glass, mono stats. Not casino neon. Brand mark: Ace–King fan (see [`branding/`](branding/)).
 
 A single-purpose blackjack client: play, read the shoe, settle the hand. The UI stays out of the way. Everything that matters lives **under the hood** — real multi-deck composition, exact next-hit math, full rule surface, wallet-native identity, and a native shell when you want it off the browser.
 
-**Aesthetic:** under-the-hood presence. Dark field, glass materials, mono stats, restrained motion. Not casino neon. Not a multi-game lobby. One felt, one hand, maximum legibility.
+Not a multi-game lobby. One felt, one hand, maximum legibility.
 
 ---
 

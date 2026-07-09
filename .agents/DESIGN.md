@@ -9,6 +9,8 @@
 **Under-the-hood presence.** One felt, one hand, maximum legibility.
 Dark field, glass materials, mono stats, restrained motion. Not casino neon.
 
+**Brand mark:** Ace–King fan on void navy (biolume edge). Masters under `branding/blackjack-logo*.png`.
+
 ## Tokens
 
 Defined in `src/styles/sea.css`:
