@@ -38,13 +38,34 @@ Open http://localhost:3000
 
 `.agents/memory/AGENTS.md`
 
-## Status (v0.1)
+## Native (iOS / Android)
 
-- [x] Project scaffold + sea theme  
+Capacitor shells with liquid-glass web UI + status bar / splash themed to Digital Sea void.
+
+```bash
+npm run build          # static export → out/
+npx cap sync
+npx cap open ios       # needs Xcode + CocoaPods on macOS
+npx cap open android   # needs Android Studio
+```
+
+App ID: `xyz.nuroctane.blackjack`
+
+## UI craft sources
+
+Agent skills installed under `.agents/skills/`:
+
+- [emilkowalski/skills](https://github.com/emilkowalski/skills) — `apple-design` (WWDC fluid interfaces), `emil-design-eng`, `animation-vocabulary`, `review-animations`
+- Family tokens: Obsidian `Building & Projects/DESIGN.md`
+
+## Status (v0.1 → native-ready)
+
+- [x] Project scaffold + sea theme + liquid glass CSS materials  
 - [x] Multi-deck shoe, hit/stand, settle, bankroll  
 - [x] Odds panel: P(bust on next hit) from remaining cards  
-- [x] RainbowKit connect (dark Digital Sea theme)  
-- [x] GitHub button (placeholder for NextAuth)  
+- [x] RainbowKit connect (Digital Sea themed)  
+- [x] Capacitor iOS + Android projects synced  
+- [x] Safe-area, press scale 0.97, reduced-motion / reduced-transparency  
 - [ ] Full SIWE session cookie + server verify  
 - [ ] On-chain buy-in / cashout  
 - [ ] Double / split / insurance  
