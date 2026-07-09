@@ -1,10 +1,12 @@
 "use client";
 
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { SiweButton } from "@/components/SiweButton";
 
 export function AuthBar() {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <SiweButton />
       <ConnectButton.Custom>
         {({
           account,

@@ -1,4 +1,4 @@
-/** Single-deck shoe with accurate combinatorial odds (no card counting UI yet). */
+/** Multi-deck shoe with combinatorial odds. Fixes mid-hand reshuffle corruption. */
 
 export type Rank =
   | "A"
@@ -22,6 +22,9 @@ export type Card = { rank: Rank; suit: Suit; id: string };
 const RANKS: Rank[] = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
 const SUITS: Suit[] = ["♠", "♥", "♦", "♣"];
 
+/** Dealer hits soft 17 (H17) — common online rule; document in UI. */
+export const DEALER_HITS_SOFT_17 = true;
+
 export function freshShoe(decks = 1): Card[] {
   const cards: Card[] = [];
   let n = 0;
@@ -44,6 +47,31 @@ export function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+function rankSuitKey(c: Card): string {
+  return `${c.rank}|${c.suit}`;
+}
+
+/** New shoe with in-play cards removed by rank/suit multiset (ids change on reshuffle). */
+export function rebuildShoeExcluding(decks: number, exclude: Card[]): Card[] {
+  const need = new Map<string, number>();
+  for (const c of exclude) {
+    const k = rankSuitKey(c);
+    need.set(k, (need.get(k) || 0) + 1);
+  }
+  const shoe = freshShoe(decks);
+  const out: Card[] = [];
+  for (const c of shoe) {
+    const k = rankSuitKey(c);
+    const r = need.get(k) || 0;
+    if (r > 0) {
+      need.set(k, r - 1);
+      continue;
+    }
+    out.push(c);
+  }
+  return shuffle(out);
+}
+
 export function handValue(cards: Card[]): { total: number; soft: boolean } {
   let total = 0;
   let aces = 0;
@@ -51,72 +79,52 @@ export function handValue(cards: Card[]): { total: number; soft: boolean } {
     if (c.rank === "A") {
       aces += 1;
       total += 11;
-    } else if (["K", "Q", "J", "10"].includes(c.rank)) {
+    } else if (c.rank === "K" || c.rank === "Q" || c.rank === "J" || c.rank === "10") {
       total += 10;
     } else {
       total += Number(c.rank);
     }
   }
-  while (total > 21 && aces > 0) {
+  // acesCountedAs11 tracks how many aces remain as 11
+  let acesAs11 = aces;
+  while (total > 21 && acesAs11 > 0) {
     total -= 10;
-    aces -= 1;
+    acesAs11 -= 1;
   }
-  const soft = cards.some((c) => c.rank === "A") && total <= 21 && aces > 0;
-  // soft if an ace is counted as 11
-  let check = 0;
-  let aceAs11 = false;
-  for (const c of cards) {
-    if (c.rank === "A") {
-      if (!aceAs11 && check + 11 <= 21) {
-        check += 11;
-        aceAs11 = true;
-      } else check += 1;
-    } else if (["K", "Q", "J", "10"].includes(c.rank)) check += 10;
-    else check += Number(c.rank);
-  }
-  return { total, soft: aceAs11 && total <= 21 };
+  return { total, soft: acesAs11 > 0 && total <= 21 };
 }
 
 export function isBlackjack(cards: Card[]): boolean {
   return cards.length === 2 && handValue(cards).total === 21;
 }
 
-/** Remaining composition after known cards removed from a full multi-deck shoe. */
-export function remainingComposition(shoe: Card[]): Record<string, number> {
-  const m: Record<string, number> = {};
-  for (const c of shoe) {
-    const k = c.rank === "10" || c.rank === "J" || c.rank === "Q" || c.rank === "K" ? "T" : c.rank;
-    m[k] = (m[k] || 0) + 1;
-  }
-  return m;
-}
-
-/**
- * Player hit bust probability on next card (exact from remaining shoe).
- * Used for the odds panel — transparent combinatorial edge, not EV of full strategy.
- */
 export function nextCardBustProb(player: Card[], shoe: Card[]): number {
   const { total } = handValue(player);
-  if (total >= 21) return total > 21 ? 1 : 0;
+  if (total > 21) return 1;
+  if (total === 21) return 0;
   if (shoe.length === 0) return 0;
   let bust = 0;
   for (const c of shoe) {
-    const t = handValue([...player, c]).total;
-    if (t > 21) bust += 1;
+    if (handValue([...player, c]).total > 21) bust += 1;
   }
   return bust / shoe.length;
 }
 
-/** Probability dealer has a natural given upcard (approx using remaining shoe). */
 export function dealerNaturalProb(upcard: Card, shoe: Card[]): number {
   if (upcard.rank !== "A" && !["10", "J", "Q", "K"].includes(upcard.rank)) return 0;
   if (shoe.length === 0) return 0;
   let hits = 0;
   for (const c of shoe) {
-    const two = handValue([upcard, c]).total;
-    if (two === 21) hits += 1;
+    if (handValue([upcard, c]).total === 21) hits += 1;
   }
   return hits / shoe.length;
+}
+
+function dealerShouldHit(cards: Card[]): boolean {
+  const { total, soft } = handValue(cards);
+  if (total < 17) return true;
+  if (DEALER_HITS_SOFT_17 && soft && total === 17) return true;
+  return false;
 }
 
 export type Phase = "betting" | "player" | "dealer" | "settled";
@@ -138,7 +146,7 @@ export function newTable(decks = 6, bankroll = 1000): TableState {
     player: [],
     dealer: [],
     phase: "betting",
-    message: "Place a bet to deal.",
+    message: "Place a bet to deal. Dealer H17.",
     bet: 25,
     bankroll,
     decks,
@@ -147,7 +155,14 @@ export function newTable(decks = 6, bankroll = 1000): TableState {
 
 function draw(state: TableState): { card: Card; state: TableState } {
   let shoe = state.shoe;
-  if (shoe.length < 20) shoe = freshShoe(state.decks);
+  if (shoe.length === 0) {
+    // Never invent cards already on the table
+    shoe = rebuildShoeExcluding(state.decks, [...state.player, ...state.dealer]);
+  }
+  if (shoe.length === 0) {
+    // Pathological: more cards in play than deck supports
+    throw new Error("Shoe exhausted");
+  }
   const [card, ...rest] = shoe;
   return { card, state: { ...state, shoe: rest } };
 }
@@ -157,22 +172,36 @@ export function deal(state: TableState): TableState {
   if (state.bet <= 0 || state.bet > state.bankroll) {
     return { ...state, message: "Invalid bet." };
   }
+  // Reshuffle only between hands when penetration is deep
+  let shoe = state.shoe;
+  if (shoe.length < 52) {
+    shoe = freshShoe(state.decks);
+  }
   let s: TableState = {
     ...state,
+    shoe,
     player: [],
     dealer: [],
     bankroll: state.bankroll - state.bet,
     message: "",
   };
-  let c;
-  ({ card: c, state: s } = draw(s));
-  s = { ...s, player: [...s.player, c] };
-  ({ card: c, state: s } = draw(s));
-  s = { ...s, dealer: [...s.dealer, c] };
-  ({ card: c, state: s } = draw(s));
-  s = { ...s, player: [...s.player, c] };
-  ({ card: c, state: s } = draw(s));
-  s = { ...s, dealer: [...s.dealer, c] };
+  try {
+    let c;
+    ({ card: c, state: s } = draw(s));
+    s = { ...s, player: [...s.player, c] };
+    ({ card: c, state: s } = draw(s));
+    s = { ...s, dealer: [...s.dealer, c] };
+    ({ card: c, state: s } = draw(s));
+    s = { ...s, player: [...s.player, c] };
+    ({ card: c, state: s } = draw(s));
+    s = { ...s, dealer: [...s.dealer, c] };
+  } catch {
+    return {
+      ...state,
+      message: "Could not deal — shoe error. Try again.",
+      phase: "betting",
+    };
+  }
 
   if (isBlackjack(s.player) || isBlackjack(s.dealer)) {
     return settle({ ...s, phase: "settled" });
@@ -183,9 +212,13 @@ export function deal(state: TableState): TableState {
 export function hit(state: TableState): TableState {
   if (state.phase !== "player") return state;
   let s = state;
-  let c;
-  ({ card: c, state: s } = draw(s));
-  s = { ...s, player: [...s.player, c] };
+  try {
+    let c;
+    ({ card: c, state: s } = draw(s));
+    s = { ...s, player: [...s.player, c] };
+  } catch {
+    return { ...state, message: "Shoe exhausted mid-hand." };
+  }
   const v = handValue(s.player).total;
   if (v > 21) {
     return {
@@ -201,10 +234,14 @@ export function hit(state: TableState): TableState {
 export function stand(state: TableState): TableState {
   if (state.phase !== "player") return state;
   let s: TableState = { ...state, phase: "dealer", message: "Dealer plays…" };
-  while (handValue(s.dealer).total < 17) {
-    let c;
-    ({ card: c, state: s } = draw(s));
-    s = { ...s, dealer: [...s.dealer, c] };
+  try {
+    while (dealerShouldHit(s.dealer)) {
+      let c;
+      ({ card: c, state: s } = draw(s));
+      s = { ...s, dealer: [...s.dealer, c] };
+    }
+  } catch {
+    return settle({ ...s, phase: "settled", message: "Shoe exhausted — settling." });
   }
   return settle({ ...s, phase: "settled" });
 }
@@ -223,9 +260,10 @@ function settle(state: TableState): TableState {
     bankroll += state.bet;
     message = "Push — both blackjack.";
   } else if (pBJ) {
-    const win = Math.floor(state.bet * 2.5);
-    bankroll += win;
-    message = `Blackjack! +${win - state.bet} (3:2).`;
+    // 3:2: return stake + 1.5x win = 2.5x stake total credit
+    const credit = Math.floor(state.bet * 2.5);
+    bankroll += credit;
+    message = `Blackjack! +${credit - state.bet} (3:2).`;
   } else if (dBJ) {
     message = `Dealer blackjack. Lose ${state.bet}.`;
   } else if (d > 21) {
@@ -245,11 +283,16 @@ function settle(state: TableState): TableState {
 }
 
 export function nextRound(state: TableState): TableState {
+  let shoe = state.shoe;
+  if (shoe.length < 52) {
+    shoe = freshShoe(state.decks);
+  }
   return {
     ...state,
+    shoe,
     player: [],
     dealer: [],
     phase: "betting",
-    message: "Place a bet to deal.",
+    message: "Place a bet to deal. Dealer H17.",
   };
 }
