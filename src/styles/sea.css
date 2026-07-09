@@ -1,0 +1,93 @@
+/* Digital Sea tokens — mirror Building & Projects/DESIGN.md */
+:root {
+  --sea-void: #070b14;
+  --sea-field: #0b1220;
+  --sea-surface: #121a2b;
+  --sea-elevated: #1a2438;
+  --sea-border: #2a3650;
+  --sea-border-soft: #ffffff14;
+  --sea-text: #e8eef8;
+  --sea-muted: #9aa8c0;
+  --sea-faint: #6b7a94;
+  --sea-accent: #5856d6;
+  --sea-accent-soft: #5856d633;
+  --sea-biolume: #5ac8fa;
+  --sea-success: #34c759;
+  --sea-danger: #ff453a;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --font: "Inter", system-ui, -apple-system, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--sea-void);
+  color: var(--sea-text);
+  font-family: var(--font);
+}
+
+a {
+  color: var(--sea-biolume);
+}
+
+.sea-app {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, #5856d622, transparent),
+    var(--sea-void);
+}
+
+.sea-glass {
+  background: color-mix(in srgb, var(--sea-surface) 78%, transparent);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid var(--sea-border-soft);
+  border-radius: var(--radius-md);
+}
+
+.sea-btn {
+  appearance: none;
+  border: 1px solid var(--sea-border-soft);
+  background: var(--sea-accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.sea-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 24px #5856d655;
+}
+
+.sea-btn:active {
+  transform: scale(0.98);
+}
+
+.sea-btn.secondary {
+  background: transparent;
+  border-color: var(--sea-border);
+  color: var(--sea-text);
+}
+
+.sea-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
