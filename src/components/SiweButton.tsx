@@ -8,7 +8,8 @@ import {
   loadSession,
   randomNonce,
   saveSession,
-  sessionMatchesAddress,
+  sessionMatches,
+  verifySiweSignature,
   type SiweSession,
 } from "@/lib/siwe";
 
@@ -21,12 +22,37 @@ export function SiweButton() {
 
   useEffect(() => {
     const s = loadSession();
-    if (sessionMatchesAddress(s, address)) setSession(s);
+    if (sessionMatches(s, address, chainId)) setSession(s);
     else {
-      if (s) clearSession();
+      // Keep stored session on brief disconnect; clear only on address/chain mismatch
+      if (s && address && !sessionMatches(s, address, chainId)) {
+        clearSession();
+      }
+      if (!address) {
+        // Soft: keep local session for reconnect same wallet
+        if (s && !s.clientVerified) clearSession();
+        setSession(null);
+        return;
+      }
       setSession(null);
     }
-  }, [address]);
+  }, [address, chainId]);
+
+  // Expiry while tab open
+  useEffect(() => {
+    if (!session) return;
+    const ms = new Date(session.expirationTime).getTime() - Date.now();
+    if (ms <= 0) {
+      clearSession();
+      setSession(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      clearSession();
+      setSession(null);
+    }, Math.min(ms, 2_147_000_000));
+    return () => clearTimeout(t);
+  }, [session]);
 
   const signIn = useCallback(async () => {
     if (!address) return;
@@ -46,6 +72,11 @@ export function SiweButton() {
         expirationTime,
       });
       const signature = await signMessageAsync({ message });
+      const ok = await verifySiweSignature({ address, message, signature });
+      if (!ok) {
+        setError("Signature verify failed");
+        return;
+      }
       const next: SiweSession = {
         address,
         chainId,
@@ -53,6 +84,7 @@ export function SiweButton() {
         signature,
         issuedAt,
         expirationTime,
+        clientVerified: true,
       };
       saveSession(next);
       setSession(next);
@@ -63,7 +95,7 @@ export function SiweButton() {
 
   if (!isConnected || !address) return null;
 
-  if (session && sessionMatchesAddress(session, address)) {
+  if (session && sessionMatches(session, address, chainId)) {
     return (
       <button
         type="button"
@@ -73,7 +105,7 @@ export function SiweButton() {
           clearSession();
           setSession(null);
         }}
-        title="Local SIWE session — server verify still required for payments"
+        title="Client-verified SIWE — server verify still required for payments"
       >
         SIWE ✓ · Sign out
       </button>

@@ -10,9 +10,13 @@ import {
   nextCardBustProb,
   nextRound,
   newTable,
+  rebuy,
   stand,
+  type HandResult,
   type TableState,
 } from "@/lib/shoe";
+
+const CHIPS = [10, 25, 50, 100] as const;
 
 function CardView({
   rank,
@@ -67,11 +71,10 @@ function CardView({
   );
 }
 
-function messageTone(msg: string): "win" | "loss" | "push" | "neutral" {
-  const m = msg.toLowerCase();
-  if (m.includes("win") || m.includes("blackjack") || m.includes("busts")) return "win";
-  if (m.includes("lose") || m.includes("bust ")) return "loss";
-  if (m.includes("push")) return "push";
+function resultTone(result: HandResult): "win" | "loss" | "push" | "neutral" {
+  if (result === "win" || result === "bj") return "win";
+  if (result === "lose") return "loss";
+  if (result === "push") return "push";
   return "neutral";
 }
 
@@ -86,11 +89,12 @@ export function Table() {
     [t],
   );
   const showDouble = canDouble(t);
-  const tone = messageTone(t.message);
+  const tone = t.phase === "settled" ? resultTone(t.result) : "neutral";
+  const affordableChips = CHIPS.filter((b) => b <= t.bankroll);
+  const canDeal = t.phase === "betting" && t.bet > 0 && t.bet <= t.bankroll && t.bankroll > 0;
 
   return (
     <div style={{ display: "grid", gap: 16 }} className="sea-stagger">
-      {/* Felt */}
       <div
         className="sea-glass-thick sea-glass"
         style={{
@@ -162,7 +166,6 @@ export function Table() {
         </div>
       </div>
 
-      {/* Odds / bank */}
       <div
         className="sea-glass"
         style={{
@@ -180,10 +183,7 @@ export function Table() {
             <div style={{ color: "var(--sea-faint)", fontSize: 11, letterSpacing: "0.06em" }}>
               P(BUST ON HIT)
             </div>
-            <div
-              className="mono display"
-              style={{ color: "var(--sea-biolume)", marginTop: 4 }}
-            >
+            <div className="mono display" style={{ color: "var(--sea-biolume)", marginTop: 4 }}>
               {(bustP * 100).toFixed(1)}%
             </div>
             <div style={{ color: "var(--sea-muted)", fontSize: 12, marginTop: 6, lineHeight: 1.4 }}>
@@ -206,7 +206,7 @@ export function Table() {
 
       {t.message && (
         <div
-          className={`sea-banner sea-banner--${tone}`}
+          className={`sea-banner sea-banner--${tone === "loss" ? "loss" : tone === "win" ? "win" : tone === "push" ? "push" : "neutral"}`}
           role="status"
           aria-live="polite"
         >
@@ -217,7 +217,7 @@ export function Table() {
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
         {t.phase === "betting" && (
           <>
-            {[10, 25, 50, 100].map((b) => (
+            {affordableChips.map((b) => (
               <button
                 key={b}
                 type="button"
@@ -228,9 +228,29 @@ export function Table() {
                 {b}
               </button>
             ))}
-            <button type="button" className="sea-btn" onClick={() => setT((s) => deal(s))}>
+            {t.bankroll > 0 && t.bankroll < 10 && (
+              <button
+                type="button"
+                className="sea-chip"
+                data-active={t.bet === t.bankroll}
+                onClick={() => setT((s) => ({ ...s, bet: s.bankroll }))}
+              >
+                All-in {t.bankroll}
+              </button>
+            )}
+            <button
+              type="button"
+              className="sea-btn"
+              disabled={!canDeal}
+              onClick={() => setT((s) => deal(s))}
+            >
               Deal
             </button>
+            {t.bankroll < 10 && (
+              <button type="button" className="sea-btn secondary" onClick={() => setT((s) => rebuy(s))}>
+                Rebuy +1000
+              </button>
+            )}
           </>
         )}
         {t.phase === "player" && (
@@ -253,9 +273,16 @@ export function Table() {
           </>
         )}
         {t.phase === "settled" && (
-          <button type="button" className="sea-btn" onClick={() => setT((s) => nextRound(s))}>
-            Next hand
-          </button>
+          <>
+            <button type="button" className="sea-btn" onClick={() => setT((s) => nextRound(s))}>
+              Next hand
+            </button>
+            {t.bankroll < 10 && (
+              <button type="button" className="sea-btn secondary" onClick={() => setT((s) => rebuy(s))}>
+                Rebuy +1000
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>

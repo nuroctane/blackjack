@@ -129,12 +129,17 @@ function dealerShouldHit(cards: Card[]): boolean {
 
 export type Phase = "betting" | "player" | "dealer" | "settled";
 
+/** Structured settle outcome for UI tone (never parse message strings). */
+export type HandResult = "win" | "lose" | "push" | "bj" | null;
+
 export type TableState = {
   shoe: Card[];
   player: Card[];
   dealer: Card[];
   phase: Phase;
   message: string;
+  /** Set only when phase === "settled" */
+  result: HandResult;
   bet: number;
   bankroll: number;
   decks: number;
@@ -147,7 +152,8 @@ export function newTable(decks = 6, bankroll = 1000): TableState {
     dealer: [],
     phase: "betting",
     message: "Place a bet to deal. Dealer H17.",
-    bet: 25,
+    result: null,
+    bet: Math.min(25, bankroll) || 0,
     bankroll,
     decks,
   };
@@ -184,6 +190,7 @@ export function deal(state: TableState): TableState {
     dealer: [],
     bankroll: state.bankroll - state.bet,
     message: "",
+    result: null,
   };
   try {
     let c;
@@ -200,6 +207,7 @@ export function deal(state: TableState): TableState {
       ...state,
       message: "Could not deal — shoe error. Try again.",
       phase: "betting",
+      result: null,
     };
   }
 
@@ -221,11 +229,7 @@ export function hit(state: TableState): TableState {
   }
   const v = handValue(s.player).total;
   if (v > 21) {
-    return {
-      ...s,
-      phase: "settled",
-      message: `Bust ${v}. Dealer wins.`,
-    };
+    return settle({ ...s, phase: "settled" });
   }
   if (v === 21) return stand(s);
   return { ...s, message: `You have ${v}. Hit or stand.` };
@@ -253,33 +257,42 @@ function settle(state: TableState): TableState {
   const dBJ = isBlackjack(state.dealer);
   let bankroll = state.bankroll;
   let message = "";
+  let result: HandResult = "lose";
 
   if (p > 21) {
     message = `Bust ${p}. You lose ${state.bet}.`;
+    result = "lose";
   } else if (dBJ && pBJ) {
     bankroll += state.bet;
     message = "Push — both blackjack.";
+    result = "push";
   } else if (pBJ) {
-    // 3:2: return stake + 1.5x win = 2.5x stake total credit
+    // 3:2: even-unit friendly — credit = floor(bet * 5 / 2) still used; prefer even bets in UI
     const credit = Math.floor(state.bet * 2.5);
     bankroll += credit;
     message = `Blackjack! +${credit - state.bet} (3:2).`;
+    result = "bj";
   } else if (dBJ) {
     message = `Dealer blackjack. Lose ${state.bet}.`;
+    result = "lose";
   } else if (d > 21) {
     bankroll += state.bet * 2;
     message = `Dealer busts ${d}. You win ${state.bet}.`;
+    result = "win";
   } else if (p > d) {
     bankroll += state.bet * 2;
     message = `You ${p} vs ${d}. Win ${state.bet}.`;
+    result = "win";
   } else if (p < d) {
     message = `You ${p} vs ${d}. Lose ${state.bet}.`;
+    result = "lose";
   } else {
     bankroll += state.bet;
     message = `Push ${p}.`;
+    result = "push";
   }
 
-  return { ...state, bankroll, message, phase: "settled" };
+  return { ...state, bankroll, message, result, phase: "settled" };
 }
 
 export function nextRound(state: TableState): TableState {
@@ -287,13 +300,41 @@ export function nextRound(state: TableState): TableState {
   if (shoe.length < 52) {
     shoe = freshShoe(state.decks);
   }
+  const bet = Math.min(state.bet, state.bankroll);
+  const safeBet =
+    bet > 0
+      ? bet
+      : state.bankroll >= 10
+        ? Math.min(25, state.bankroll)
+        : state.bankroll;
   return {
     ...state,
     shoe,
     player: [],
     dealer: [],
     phase: "betting",
-    message: "Place a bet to deal. Dealer H17.",
+    message:
+      state.bankroll <= 0
+        ? "Bankroll empty — rebuy to continue."
+        : "Place a bet to deal. Dealer H17.",
+    result: null,
+    bet: safeBet,
+  };
+}
+
+/** Top up bankroll for demo play (not on-chain). */
+export function rebuy(state: TableState, amount = 1000): TableState {
+  if (state.phase !== "betting" && state.phase !== "settled") return state;
+  const bankroll = state.bankroll + amount;
+  return {
+    ...state,
+    bankroll,
+    phase: "betting",
+    bet: Math.min(Math.max(state.bet, 10), bankroll) || Math.min(25, bankroll),
+    message: `Rebuy +${amount}. Bankroll ${bankroll}.`,
+    result: null,
+    player: [],
+    dealer: [],
   };
 }
 
@@ -329,11 +370,7 @@ export function doubleDown(state: TableState): TableState {
   }
   const v = handValue(s.player).total;
   if (v > 21) {
-    return {
-      ...s,
-      phase: "settled",
-      message: `Bust ${v} on double. Lose ${s.bet}.`,
-    };
+    return settle({ ...s, phase: "settled" });
   }
   return stand(s);
 }
