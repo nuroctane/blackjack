@@ -72,7 +72,7 @@ Everything below stays inside the game. No product sprawl.
 | Priority | Feature | Status |
 |----------|---------|--------|
 | Done | Double down (two-card, 1 card, 2× stake) | ✅ Engine + UI |
-| Done | Design system (`DESIGN.md` + sea tokens, Emil/Apple motion) | ✅ |
+| Done | Design system (`.agents/DESIGN.md` + sea tokens, Emil/Apple motion) | ✅ |
 | Done | Settle banners, bust meter, focus-visible, reduced-motion | ✅ |
 | Next | Split (true multi-hand seat) / insurance | Engine stubs deferred until multi-hand UI |
 | Next | Full SIWE session (cookie + server verify) | Connect ships; session hardening next |
