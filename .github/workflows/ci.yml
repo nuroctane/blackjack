@@ -1,0 +1,29 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Engine tests
+        run: npm run test:shoe
+      - name: Solver tests
+        run: npm run test:ev
+      - name: Simulation smoke (1k hands, solver policy)
+        run: npx tsx scripts/sim.ts 1000 solver
+      - name: Build (static export)
+        run: npm run build
+        env:
+          NEXT_PUBLIC_WC_PROJECT_ID: ""

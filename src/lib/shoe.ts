@@ -192,8 +192,8 @@ export type DealerDist = {
   bust: number;
 };
 
-/** Remaining shoe as counts per value class: index 0 = Ace, 1..8 = 2..9, 9 = ten-value. */
-function shoeValueCounts(shoe: Card[]): number[] {
+/** Remaining pool as counts per value class: index 0 = Ace, 1..8 = 2..9, 9 = ten-value. */
+export function shoeValueCounts(shoe: Card[]): number[] {
   const counts = new Array(10).fill(0);
   for (const c of shoe) {
     if (c.rank === "A") counts[0] += 1;
@@ -208,21 +208,42 @@ function classValue(i: number): number {
 }
 
 /**
- * Exact dealer outcome probabilities from the live shoe (with depletion).
+ * Exact dealer outcome probabilities from an unseen-card pool (with depletion).
  * When `conditionNoBlackjack` is true (upcard A or ten after peek/insurance
  * resolution), naturals are excluded from the hole card and the distribution
  * is renormalized — the standard post-peek conditional.
  */
 export function dealerOutcomeDist(
   upcard: Card,
-  shoe: Card[],
+  pool: Card[],
+  rules: Rules,
+  conditionNoBlackjack = true,
+): DealerDist {
+  return dealerDistFromCounts(
+    cardValue(upcard.rank),
+    upcard.rank === "A",
+    shoeValueCounts(pool),
+    pool.length,
+    rules,
+    conditionNoBlackjack,
+  );
+}
+
+/**
+ * Counts-based core for the dealer distribution. `counts` is a 10-slot vector
+ * (index 0 = ace, 1..8 = 2..9, 9 = ten-value) of unseen cards; it is mutated
+ * during recursion and fully restored before returning. Exported for the exact
+ * EV solver in ev.ts, which memoizes over count states.
+ */
+export function dealerDistFromCounts(
+  upVal: number,
+  upIsAce: boolean,
+  counts: number[],
+  poolSize: number,
   rules: Rules,
   conditionNoBlackjack = true,
 ): DealerDist {
   const out: DealerDist = { p17: 0, p18: 0, p19: 0, p20: 0, p21: 0, bust: 0 };
-  const counts = shoeValueCounts(shoe);
-  const upVal = cardValue(upcard.rank);
-  const upIsAce = upcard.rank === "A";
   const upIsTen = upVal === 10 && !upIsAce;
 
   const record = (total: number, soft: boolean, prob: number) => {
@@ -276,8 +297,21 @@ export function dealerOutcomeDist(
     }
   };
 
-  recurse(upVal, upIsAce ? 1 : 0, shoe.length, 1, true);
+  recurse(upVal, upIsAce ? 1 : 0, poolSize, 1, true);
   return out;
+}
+
+/**
+ * The player-perspective pool of unseen cards: the shoe plus the dealer's
+ * hidden hole card. From the player's seat, "unseen" = full composition minus
+ * every visible card, which is exactly this set. Using the shoe alone slightly
+ * misstates probabilities because the hole card is unseen but absent from the
+ * shoe array. All player-facing odds should draw from this pool.
+ */
+export function unseenPool(state: TableState): Card[] {
+  const holeHidden =
+    (state.phase === "player" || state.phase === "insurance") && state.dealer.length >= 2;
+  return holeHidden ? [...state.shoe, state.dealer[1]] : state.shoe;
 }
 
 /** Exact EV (per unit staked) of standing on `playerTotal` vs the dealer distribution. */

@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   applyRules,
   canDouble,
   canSplit,
   canSurrender,
   deal,
+  dealerNaturalProb,
   dealerOutcomeDist,
   declineInsurance,
   DEFAULT_RULES,
@@ -25,12 +26,24 @@ import {
   standEV,
   surrender,
   takeInsurance,
+  unseenPool,
   type HandResult,
+  type Phase,
   type Rules,
   type SessionStats,
   type TableState,
 } from "@/lib/shoe";
-import { advise, ADVICE_LABEL } from "@/lib/strategy";
+import { solveActions, type ActionEVs } from "@/lib/ev";
+import { advise, ADVICE_LABEL, type Advice } from "@/lib/strategy";
+import {
+  appendRound,
+  clearHistory,
+  loadHistory,
+  MISTAKE_EPS,
+  summarize,
+  type DecisionRecord,
+  type RoundRecord,
+} from "@/lib/history";
 
 const CHIPS = [10, 25, 50, 100] as const;
 const PERSIST_KEY = "ds_bj_table_v2";
@@ -58,6 +71,10 @@ function loadPersisted(): Persisted | null {
   } catch {
     return null;
   }
+}
+
+function cardsLabel(cards: Array<{ rank: string; suit: string }>): string {
+  return cards.map((c) => `${c.rank}${c.suit}`).join(" ");
 }
 
 function CardView({
@@ -128,15 +145,62 @@ const sectionLabel: React.CSSProperties = {
   marginBottom: 12,
 };
 
+function EvRow({
+  label,
+  value,
+  best,
+  approx,
+  hotkey,
+}: {
+  label: string;
+  value: number | null;
+  best: boolean;
+  approx?: boolean;
+  hotkey: string;
+}) {
+  if (value === null) return null;
+  return (
+    <div
+      className="mono"
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 12,
+        fontSize: 13,
+        padding: "4px 10px",
+        borderRadius: "var(--radius-sm)",
+        background: best ? "var(--sea-accent-soft)" : "transparent",
+        border: best ? "1px solid var(--sea-accent-soft)" : "1px solid transparent",
+      }}
+    >
+      <span style={{ color: best ? "var(--sea-text)" : "var(--sea-muted)" }}>
+        {label}
+        {approx ? " ≈" : ""}
+        <span style={{ color: "var(--sea-faint)", marginLeft: 6, fontSize: 11 }}>{hotkey}</span>
+      </span>
+      <span style={{ color: value >= 0 ? "var(--sea-success)" : "var(--sea-danger)", fontWeight: best ? 700 : 400 }}>
+        {value >= 0 ? "+" : ""}
+        {(value * 100).toFixed(1)}%
+      </span>
+    </div>
+  );
+}
+
 export function Table() {
   const [t, setT] = useState<TableState>(() => newTable(DEFAULT_RULES, 1000));
-  const [showAdvisor, setShowAdvisor] = useState(true);
+  const [showSolver, setShowSolver] = useState(true);
   const [showCount, setShowCount] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<RoundRecord[]>([]);
   const [draftRules, setDraftRules] = useState<Rules>(DEFAULT_RULES);
+  const [customBet, setCustomBet] = useState("");
   const hydrated = useRef(false);
+  const pendingDecisions = useRef<DecisionRecord[]>([]);
+  const prevNet = useRef(0);
+  const prevPhase = useRef<Phase>("betting");
 
-  // Restore bankroll / bet / rules / stats between sessions (demo persistence).
+  // Restore bankroll / bet / rules / stats / history between sessions.
   useEffect(() => {
     const p = loadPersisted();
     if (p) {
@@ -147,7 +211,9 @@ export function Table() {
         message: s.message,
       }));
       setDraftRules(p.rules);
+      prevNet.current = p.stats.net;
     }
+    setHistory(loadHistory());
     hydrated.current = true;
   }, []);
 
@@ -164,21 +230,111 @@ export function Table() {
   const dVal = useMemo(() => handValue(t.dealer), [t.dealer]);
   const hideHole = t.phase === "player" || t.phase === "betting" || t.phase === "insurance";
   const activeHand = t.hands[t.active];
+  const pool = useMemo(() => unseenPool(t), [t]);
 
   const bustP = useMemo(
-    () => (t.phase === "player" && activeHand ? nextCardBustProb(activeHand.cards, t.shoe) : null),
-    [t, activeHand],
+    () => (t.phase === "player" && activeHand ? nextCardBustProb(activeHand.cards, pool) : null),
+    [t.phase, activeHand, pool],
   );
   const dealerDist = useMemo(
-    () => (t.phase === "player" && t.dealer[0] ? dealerOutcomeDist(t.dealer[0], t.shoe, t.rules) : null),
-    [t],
+    () => (t.phase === "player" && t.dealer[0] ? dealerOutcomeDist(t.dealer[0], pool, t.rules) : null),
+    [t, pool],
   );
   const evStand = useMemo(() => {
     if (!dealerDist || !activeHand) return null;
     return standEV(handValue(activeHand.cards).total, dealerDist);
   }, [dealerDist, activeHand]);
+  const solve = useMemo(
+    () => (showSolver && t.phase === "player" ? solveActions(t) : null),
+    [showSolver, t],
+  );
+  const chartAdvice = useMemo(() => advise(t), [t]);
   const count = useMemo(() => (showCount ? hiLoCount(t) : null), [showCount, t]);
-  const advice = useMemo(() => (showAdvisor ? advise(t) : null), [showAdvisor, t]);
+  const insuranceBJProb = useMemo(
+    () => (t.phase === "insurance" && t.dealer[0] ? dealerNaturalProb(t.dealer[0], pool) : null),
+    [t.phase, t.dealer, pool],
+  );
+
+  const solveRef = useRef<ActionEVs | null>(null);
+  solveRef.current = solve;
+
+  // Round bookkeeping: on settle, flush graded decisions into history.
+  useEffect(() => {
+    if (t.phase === "settled" && prevPhase.current !== "settled") {
+      const round: RoundRecord = {
+        ts: Date.now(),
+        hands: t.hands.map((h) => ({ cards: cardsLabel(h.cards), bet: h.bet, result: h.result })),
+        dealer: cardsLabel(t.dealer),
+        net: t.stats.net - prevNet.current,
+        decisions: pendingDecisions.current,
+      };
+      setHistory((h) => appendRound(h, round));
+      pendingDecisions.current = [];
+      prevNet.current = t.stats.net;
+    }
+    if (t.phase === "betting") pendingDecisions.current = [];
+    prevPhase.current = t.phase;
+  }, [t.phase, t.hands, t.dealer, t.stats.net]);
+
+  const recordDecision = (action: Advice) => {
+    const sv = solveRef.current;
+    const hand = t.hands[t.active];
+    if (!sv || !hand || !t.dealer[0]) return;
+    const chosen = sv[action];
+    if (chosen === null || chosen === undefined) return;
+    pendingDecisions.current.push({
+      hand: cardsLabel(hand.cards),
+      up: `${t.dealer[0].rank}${t.dealer[0].suit}`,
+      action,
+      best: sv.best,
+      evLost: Math.max(0, sv.bestEV - chosen),
+    });
+  };
+
+  const doHit = () => {
+    recordDecision("hit");
+    setT((s) => hit(s));
+  };
+  const doStand = () => {
+    recordDecision("stand");
+    setT((s) => stand(s));
+  };
+  const doDouble = () => {
+    recordDecision("double");
+    setT((s) => doubleDown(s));
+  };
+  const doSplit = () => {
+    recordDecision("split");
+    setT((s) => split(s));
+  };
+  const doSurrender = () => {
+    recordDecision("surrender");
+    setT((s) => surrender(s));
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+      const k = e.key.toLowerCase();
+      if (t.phase === "player") {
+        if (k === "h") doHit();
+        else if (k === "s") doStand();
+        else if (k === "d" && canDouble(t)) doDouble();
+        else if (k === "p" && canSplit(t)) doSplit();
+        else if (k === "r" && canSurrender(t)) doSurrender();
+      } else if (t.phase === "insurance") {
+        if (k === "y") setT((s) => takeInsurance(s));
+        else if (k === "n") setT((s) => declineInsurance(s));
+      } else if (k === "enter") {
+        if (t.phase === "betting" && t.bet > 0 && t.bet <= t.bankroll) setT((s) => deal(s));
+        else if (t.phase === "settled") setT((s) => nextRound(s));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t]);
 
   const showDouble = canDouble(t);
   const showSplit = canSplit(t);
@@ -187,42 +343,20 @@ export function Table() {
   const affordableChips = CHIPS.filter((b) => b <= t.bankroll);
   const canDeal = t.phase === "betting" && t.bet > 0 && t.bet <= t.bankroll && t.bankroll > 0;
   const playerHasBJ = t.hands[0] ? isBlackjack(t.hands[0].cards) : false;
-
-  const onKey = useCallback(
-    (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
-      const k = e.key.toLowerCase();
-      setT((s) => {
-        if (s.phase === "player") {
-          if (k === "h") return hit(s);
-          if (k === "s") return stand(s);
-          if (k === "d" && canDouble(s)) return doubleDown(s);
-          if (k === "p" && canSplit(s)) return split(s);
-          if (k === "r" && canSurrender(s)) return surrender(s);
-        }
-        if (s.phase === "insurance") {
-          if (k === "y") return takeInsurance(s);
-          if (k === "n") return declineInsurance(s);
-        }
-        if (k === "enter") {
-          if (s.phase === "betting" && s.bet > 0 && s.bet <= s.bankroll) return deal(s);
-          if (s.phase === "settled") return nextRound(s);
-        }
-        return s;
-      });
-    },
-    [],
-  );
-
-  useEffect(() => {
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onKey]);
+  const chartDisagrees = solve && chartAdvice && chartAdvice !== solve.best;
+  const summary = useMemo(() => summarize(history), [history]);
 
   const applyDraftRules = () => {
     setT((s) => applyRules(s, draftRules));
     setRulesOpen(false);
+  };
+
+  const applyCustomBet = () => {
+    const v = Math.floor(Number(customBet));
+    if (Number.isFinite(v) && v > 0 && v <= t.bankroll) {
+      setT((s) => ({ ...s, bet: v }));
+    }
+    setCustomBet("");
   };
 
   return (
@@ -354,7 +488,7 @@ export function Table() {
                 </div>
               </>
             )}
-            {dealerDist && evStand !== null && (
+            {dealerDist && (
               <div
                 className="mono"
                 style={{
@@ -370,13 +504,15 @@ export function Table() {
                   P(dealer bust){" "}
                   <span style={{ color: "var(--sea-text)" }}>{(dealerDist.bust * 100).toFixed(1)}%</span>
                 </span>
-                <span>
-                  Stand EV{" "}
-                  <span style={{ color: evStand >= 0 ? "var(--sea-success)" : "var(--sea-danger)" }}>
-                    {evStand >= 0 ? "+" : ""}
-                    {(evStand * 100).toFixed(1)}%
+                {!solve && evStand !== null && (
+                  <span>
+                    Stand EV{" "}
+                    <span style={{ color: evStand >= 0 ? "var(--sea-success)" : "var(--sea-danger)" }}>
+                      {evStand >= 0 ? "+" : ""}
+                      {(evStand * 100).toFixed(1)}%
+                    </span>
                   </span>
-                </span>
+                )}
                 {count && (
                   <span>
                     Hi-Lo <span style={{ color: "var(--sea-text)" }}>{count.running >= 0 ? "+" : ""}{count.running}</span>
@@ -389,30 +525,40 @@ export function Table() {
                 )}
               </div>
             )}
-            <div style={{ color: "var(--sea-muted)", fontSize: 12, marginTop: 8, lineHeight: 1.4 }}>
-              Bust %, dealer distribution, and stand EV are exact from remaining shoe composition
-              (post-peek conditional). Advisor is the published basic-strategy chart.
-            </div>
-            {advice && (
-              <div
-                style={{
-                  marginTop: 10,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "6px 12px",
-                  borderRadius: "var(--radius-pill)",
-                  border: "1px solid var(--sea-accent-soft)",
-                  background: "var(--sea-accent-soft)",
-                  fontSize: 13,
-                }}
-              >
-                <span style={{ color: "var(--sea-muted)" }}>Chart says</span>
-                <span className="mono" style={{ color: "var(--sea-text)", fontWeight: 700 }}>
-                  {ADVICE_LABEL[advice]}
-                </span>
+            {solve && (
+              <div style={{ marginTop: 12, display: "grid", gap: 2, maxWidth: 340 }}>
+                <div style={{ color: "var(--sea-faint)", fontSize: 11, letterSpacing: "0.06em", marginBottom: 4 }}>
+                  EXACT EV PER ACTION — % OF ORIGINAL BET
+                </div>
+                <EvRow label="Stand" value={solve.stand} best={solve.best === "stand"} hotkey="S" />
+                <EvRow label="Hit" value={solve.hit} best={solve.best === "hit"} hotkey="H" />
+                <EvRow label="Double" value={solve.double} best={solve.best === "double"} hotkey="D" />
+                <EvRow label="Split" value={solve.split} best={solve.best === "split"} approx hotkey="P" />
+                <EvRow label="Surrender" value={solve.surrender} best={solve.best === "surrender"} hotkey="R" />
+                {chartDisagrees && (
+                  <div style={{ color: "var(--sea-muted)", fontSize: 12, marginTop: 4 }}>
+                    Chart says {ADVICE_LABEL[chartAdvice as Advice]} — the exact composition disagrees.
+                  </div>
+                )}
               </div>
             )}
+            <div style={{ color: "var(--sea-muted)", fontSize: 12, marginTop: 8, lineHeight: 1.4 }}>
+              All quantities are exact from the unseen-card composition (shoe + hole), post-peek
+              conditional. Split EV uses the standard independence approximation (≈).
+            </div>
+          </div>
+        )}
+        {t.phase === "insurance" && insuranceBJProb !== null && (
+          <div style={{ gridColumn: "1 / -1", paddingTop: 4 }}>
+            <div className="mono" style={{ fontSize: 13, color: "var(--sea-muted)" }}>
+              P(dealer blackjack){" "}
+              <span style={{ color: "var(--sea-text)" }}>{(insuranceBJProb * 100).toFixed(1)}%</span>
+              {" — insurance is "}
+              <span style={{ color: insuranceBJProb > 1 / 3 ? "var(--sea-success)" : "var(--sea-danger)" }}>
+                {insuranceBJProb > 1 / 3 ? "+EV" : "−EV"}
+              </span>
+              {" (breakeven 33.3%)"}
+            </div>
           </div>
         )}
       </div>
@@ -427,7 +573,7 @@ export function Table() {
         </div>
       )}
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
         {t.phase === "betting" && (
           <>
             {affordableChips.map((b) => (
@@ -441,6 +587,25 @@ export function Table() {
                 {b}
               </button>
             ))}
+            <input
+              className="mono"
+              inputMode="numeric"
+              placeholder="Custom"
+              value={customBet}
+              onChange={(e) => setCustomBet(e.target.value.replace(/[^0-9]/g, ""))}
+              onKeyDown={(e) => e.key === "Enter" && applyCustomBet()}
+              onBlur={applyCustomBet}
+              aria-label="Custom bet"
+              style={{
+                width: 84,
+                background: "var(--sea-surface)",
+                color: "var(--sea-text)",
+                border: "1px solid var(--sea-border)",
+                borderRadius: "var(--radius-pill)",
+                padding: "12px 14px",
+                fontSize: 14,
+              }}
+            />
             {t.bankroll > 0 && t.bankroll < 10 && (
               <button
                 type="button"
@@ -482,32 +647,24 @@ export function Table() {
         )}
         {t.phase === "player" && (
           <>
-            <button type="button" className="sea-btn" onClick={() => setT((s) => hit(s))}>
+            <button type="button" className="sea-btn" onClick={doHit}>
               Hit
             </button>
-            <button type="button" className="sea-btn secondary" onClick={() => setT((s) => stand(s))}>
+            <button type="button" className="sea-btn secondary" onClick={doStand}>
               Stand
             </button>
             {showDouble && (
-              <button
-                type="button"
-                className="sea-btn secondary"
-                onClick={() => setT((s) => doubleDown(s))}
-              >
+              <button type="button" className="sea-btn secondary" onClick={doDouble}>
                 Double
               </button>
             )}
             {showSplit && (
-              <button type="button" className="sea-btn secondary" onClick={() => setT((s) => split(s))}>
+              <button type="button" className="sea-btn secondary" onClick={doSplit}>
                 Split
               </button>
             )}
             {showSurrender && (
-              <button
-                type="button"
-                className="sea-btn secondary"
-                onClick={() => setT((s) => surrender(s))}
-              >
+              <button type="button" className="sea-btn secondary" onClick={doSurrender}>
                 Surrender
               </button>
             )}
@@ -525,6 +682,10 @@ export function Table() {
             )}
           </>
         )}
+      </div>
+
+      <div style={{ color: "var(--sea-faint)", fontSize: 11, letterSpacing: "0.04em" }}>
+        KEYS · H HIT · S STAND · D DOUBLE · P SPLIT · R SURRENDER · Y/N INSURANCE · ENTER DEAL / NEXT
       </div>
 
       <div
@@ -550,20 +711,31 @@ export function Table() {
             {t.stats.net >= 0 ? "+" : ""}
             {t.stats.net}
           </span>
+          {summary.decisions > 0 && (
+            <>
+              {" · accuracy "}
+              <span style={{ color: summary.accuracy >= 0.95 ? "var(--sea-success)" : "var(--sea-text)" }}>
+                {(summary.accuracy * 100).toFixed(0)}%
+              </span>
+            </>
+          )}
         </span>
         <span style={{ flex: 1 }} />
         <label style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--sea-muted)", cursor: "pointer" }}>
           <input
             type="checkbox"
-            checked={showAdvisor}
-            onChange={(e) => setShowAdvisor(e.target.checked)}
+            checked={showSolver}
+            onChange={(e) => setShowSolver(e.target.checked)}
           />
-          Advisor
+          Solver
         </label>
         <label style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--sea-muted)", cursor: "pointer" }}>
           <input type="checkbox" checked={showCount} onChange={(e) => setShowCount(e.target.checked)} />
           Count
         </label>
+        <button type="button" className="sea-chip" onClick={() => setHistoryOpen((v) => !v)}>
+          History
+        </button>
         <button
           type="button"
           className="sea-chip"
@@ -576,6 +748,71 @@ export function Table() {
           Rules
         </button>
       </div>
+
+      {historyOpen && (
+        <div className="sea-glass" style={{ padding: 16, display: "grid", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ ...sectionLabel, marginBottom: 0 }}>Hand history — graded vs exact solve</div>
+            <span style={{ flex: 1 }} />
+            {history.length > 0 && (
+              <button type="button" className="sea-chip" onClick={() => setHistory(clearHistory())}>
+                Clear
+              </button>
+            )}
+          </div>
+          {summary.decisions > 0 && (
+            <div className="mono" style={{ fontSize: 13, color: "var(--sea-muted)" }}>
+              {summary.rounds} rounds · {summary.decisions} decisions ·{" "}
+              <span style={{ color: "var(--sea-text)" }}>{summary.mistakes} mistakes</span> · EV given up{" "}
+              <span style={{ color: summary.evLostTotal > 0 ? "var(--sea-danger)" : "var(--sea-success)" }}>
+                {summary.evLostTotal.toFixed(2)}u
+              </span>
+            </div>
+          )}
+          {history.length === 0 && (
+            <div style={{ color: "var(--sea-faint)", fontSize: 13 }}>
+              No rounds yet — decisions are graded only while the solver is on.
+            </div>
+          )}
+          <div style={{ display: "grid", gap: 8, maxHeight: 320, overflowY: "auto" }}>
+            {[...history].reverse().slice(0, 30).map((r, i) => {
+              const mistakes = r.decisions.filter((d) => d.evLost > MISTAKE_EPS);
+              return (
+                <div
+                  key={r.ts + "-" + i}
+                  className="mono"
+                  style={{
+                    fontSize: 12.5,
+                    padding: "8px 10px",
+                    borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--sea-border-soft)",
+                    display: "grid",
+                    gap: 4,
+                  }}
+                >
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <span style={{ color: "var(--sea-text)" }}>
+                      {r.hands.map((h) => h.cards).join(" | ")}
+                    </span>
+                    <span style={{ color: "var(--sea-muted)" }}>vs {r.dealer}</span>
+                    <span style={{ flex: 1 }} />
+                    <span style={{ color: r.net > 0 ? "var(--sea-success)" : r.net < 0 ? "var(--sea-danger)" : "var(--sea-muted)" }}>
+                      {r.net > 0 ? "+" : ""}
+                      {r.net}
+                    </span>
+                  </div>
+                  {mistakes.map((d, di) => (
+                    <div key={di} style={{ color: "var(--sea-danger)", fontSize: 12 }}>
+                      {d.hand} vs {d.up}: chose {ADVICE_LABEL[d.action]}, best {ADVICE_LABEL[d.best]} (−
+                      {(d.evLost * 100).toFixed(1)}%)
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {rulesOpen && (
         <div className="sea-glass" style={{ padding: 16, display: "grid", gap: 14 }}>

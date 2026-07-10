@@ -39,7 +39,7 @@ Not a multi-game lobby. One felt, one hand, maximum legibility.
 
 ---
 
-## What ships today (v0.1+)
+## What ships today (v0.3)
 
 ### Table
 
@@ -54,12 +54,13 @@ Not a multi-game lobby. One felt, one hand, maximum legibility.
 
 ### Odds (odds-first)
 
-- **P(bust on hit)** — exact fraction of remaining ranks that bust you next card
-- **Exact dealer outcome distribution** — P(17…21, bust) computed by recursion over live shoe composition with depletion, post-peek conditional
-- **Stand EV** — exact per-unit EV of standing vs that distribution
+- **Exact EV per action** — full expectimax over the live unseen composition, memoized with depletion: stand, hit (optimal continuation), double, and surrender are exact; split uses the standard independence approximation and is labeled ≈
+- **P(bust on hit)** and **exact dealer outcome distribution** — P(17…21, bust), post-peek conditional
+- **Player-perspective pool** — all odds draw from shoe + hidden hole card, the exact unseen set from the player's seat
+- **Insurance callout** — exact P(dealer blackjack) vs the 33.3% breakeven, labeled +EV/−EV
+- **Play grading** — every decision is graded against the exact solve; hand history logs mistakes and EV given up, with session accuracy
 - **Hi-Lo running / true count** (toggle)
-- **Basic-strategy advisor** (toggle) — published chart with H17/S17 deltas, DAS/surrender aware; labeled as chart, not a composition-dependent solve
-- Driven by live shoe composition, not a static chart (advisor excepted and labeled)
+- **Basic-strategy chart** shown when it disagrees with the exact composition — the teaching moment is the point
 
 ### Identity (web3)
 
@@ -94,10 +95,13 @@ Everything below stays inside the game. No product sprawl.
 | Done | Exact dealer distribution + stand EV; Hi-Lo count | ✅ Combinatorial, post-peek conditional |
 | Done | Basic-strategy chart advisor (H17/S17, DAS, LS aware) | ✅ Labeled as chart |
 | Done | Session stats (W/L/P, BJ, net) + local persistence | ✅ |
-| Next | Full SIWE session (cookie + server verify) | Client verified; server next |
+| Done | **Full composition-dependent EV per action** | ✅ Exact hit/stand/double/surrender; split ≈ (labeled) |
+| Done | Hand history + play grading (EV vs exact solve) | ✅ Mistakes, accuracy, EV given up |
+| Done | Player-perspective unseen pool (shoe + hole) | ✅ Correctness fix for all odds |
+| Done | Simulation harness (`npm run sim`) + GitHub Actions CI | ✅ Typecheck, tests, sim smoke, build |
+| Next | Full SIWE session (cookie + server verify) | Blocked by static export (Capacitor); needs a server deploy target |
 | Next | On-chain buy-in / cashout | Bankroll that can leave the browser |
-| Soon | Full composition-dependent EV per action (hit/double/split solve) | Only when exact — dealer dist + stand EV shipped as first step |
-| Later | Hand history log (per-hand replay, EV vs play grading) | Utility for the player, not social noise |
+| Later | Exact split EV (resplit-aware joint solve) | Replace the ≈ when tractable |
 | Later | Sound / haptics on native shell | Capacitor haptics, quiet by default |
 
 **Out of scope forever (examples):** other casino games, NFT mint spam, generic DeFi dashboard, non-blackjack chrome.
@@ -110,7 +114,7 @@ Everything below stays inside the game. No product sprawl.
 |-------|--------|
 | App | Next.js 15, React 19, TypeScript |
 | Chain UI | wagmi, viem, RainbowKit |
-| Table engine | `src/lib/shoe.ts` — shoe, rules, multi-hand phases, exact odds · `src/lib/strategy.ts` — chart advisor |
+| Table engine | `src/lib/shoe.ts` — shoe, rules, multi-hand phases, exact odds · `src/lib/ev.ts` — exact EV solver · `src/lib/strategy.ts` — chart · `src/lib/history.ts` — grading |
 | Design | CSS tokens — `src/styles/sea.css` |
 | Native | Capacitor 7 (iOS / Android) |
 
@@ -126,6 +130,11 @@ npm install
 # echo NEXT_PUBLIC_WC_PROJECT_ID=your_id > .env.local
 
 npm run dev
+
+# verify
+npm test          # engine + solver suites
+npm run sim       # 20k-hand edge simulation (solver policy)
+npm run sim -- 20000 chart
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
@@ -145,8 +154,10 @@ npm run cap:android  # build + sync + open Android Studio
 src/
   app/           # layout, home shell
   components/    # Table, AuthBar, Providers
-  lib/           # shoe engine, wagmi config
+  lib/           # shoe, ev solver, history grading, strategy chart, wagmi
   styles/        # sea.css — materials & tokens
+scripts/         # sim.ts — edge simulation harness
+.github/         # CI (typecheck, tests, sim smoke, build)
 public/          # logo.svg, icon.svg
 capacitor.config.ts
 .agents/         # agent memory + design/motion skills
@@ -165,7 +176,7 @@ Agent conventions: `.agents/memory/AGENTS.md`
 
 - **Presence** — Under-the-hood aesthetic; tokens live in CSS. This app is *only* blackjack.
 - **Auth** — SIWE via RainbowKit + WalletConnect; GitHub as secondary path.
-- **Math** — Prefer exact remaining-shoe combinatorics; never fake EV.
+- **Math** — Prefer exact composition-dependent combinatorics (player-perspective pool); never fake EV. Split EV is labeled ≈ until a joint resplit solve ships.
 - **Motion** — Smooth, quiet, interruptible — not casino neon.
 - **Scope** — If it is not blackjack utility or session rails for play, cut it.
 
@@ -183,9 +194,10 @@ Agent conventions: `.agents/memory/AGENTS.md`
 - [x] Rule config (H17/S17, DAS, surrender, decks, payout, penetration)
 - [x] Exact dealer distribution + stand EV; Hi-Lo count; chart advisor
 - [x] Session stats + persistence
-- [ ] Full SIWE session cookie + server verify
+- [x] Full composition-dependent EV per action (split ≈, labeled)
+- [x] Hand history + play grading; sim harness; CI
+- [ ] Full SIWE session cookie + server verify (needs non-static deploy)
 - [ ] On-chain buy-in / cashout
-- [ ] Full composition-dependent EV per action
 
 ---
 
