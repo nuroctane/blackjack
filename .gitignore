@@ -6,3 +6,6 @@ out
 .DS_Store
 *.log
 .vercel
+
+# Local agent instructions only (never publish to main)
+AGENTS.md
